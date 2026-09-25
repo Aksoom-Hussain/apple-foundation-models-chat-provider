@@ -48,7 +48,7 @@ const MODEL_INFO = {
     version: "1",
     maxInputTokens: 4096,
     maxOutputTokens: 1024,
-    capabilities: { toolCalling: false },
+    capabilities: { toolCalling: true },
 };
 function activate(context) {
     context.subscriptions.push(vscode.lm.registerLanguageModelChatProvider(VENDOR, new AppleFoundationModelProvider(context.extensionUri.fsPath)));
@@ -71,20 +71,13 @@ class AppleFoundationModelProvider {
             return [];
         }
     }
-    async provideLanguageModelChatResponse(_model, messages, _options, progress, token) {
+    async provideLanguageModelChatResponse(_model, messages, options, progress, token) {
         const helperPath = getHelperPath(this.extensionPath);
         if (!helperPath) {
             throw new Error("Apple Foundation Models is supported only on macOS with Apple Silicon.");
         }
-        const prompt = messages
-            .map((message) => {
-            const role = message.role === vscode.LanguageModelChatMessageRole.Assistant
-                ? "Assistant"
-                : "User";
-            return `${role}: ${message.content.map(readTextPart).filter(Boolean).join("")}`;
-        })
-            .join("\n\n");
-        await requestModel(helperPath, prompt, progress, token);
+        const prompt = serializeMessages(messages);
+        await requestModel(helperPath, prompt, options, progress, token);
     }
     async provideTokenCount(_model, text, _token) {
         const value = typeof text === "string"
@@ -105,13 +98,29 @@ function readTextPart(part) {
     }
     return typeof part.value === "string" ? part.value : "";
 }
-function requestModel(helperPath, prompt, progress, token) {
+function serializeMessages(messages) {
+    return messages.map((message) => {
+        const role = message.role === vscode.LanguageModelChatMessageRole.Assistant ? "Assistant" : "User";
+        const content = message.content.map((part) => {
+            if (part instanceof vscode.LanguageModelToolCallPart) {
+                return `Tool call ${part.name} (${part.callId}): ${JSON.stringify(part.input)}`;
+            }
+            if (part instanceof vscode.LanguageModelToolResultPart) {
+                return `Tool result (${part.callId}): ${part.content.map(readTextPart).filter(Boolean).join("")}`;
+            }
+            return readTextPart(part);
+        }).filter(Boolean).join("");
+        return `${role}: ${content}`;
+    }).join("\n\n");
+}
+function requestModel(helperPath, prompt, options, progress, token) {
     return new Promise((resolve, reject) => {
         const requestId = crypto.randomUUID();
         const child = (0, node_child_process_1.spawn)(helperPath, [], { stdio: ["pipe", "pipe", "pipe"] });
         let stdoutBuffer = "";
         let stderr = "";
         let responseStarted = false;
+        let toolCallCount = 0;
         let settled = false;
         let cancellation;
         const finish = (error) => {
@@ -160,11 +169,31 @@ function requestModel(helperPath, prompt, progress, token) {
                     }
                     if (!responseStarted) {
                         responseStarted = true;
-                        child.stdin.write(`${JSON.stringify({ type: "prompt", id: requestId, text: prompt })}\n`);
+                        child.stdin.write(`${JSON.stringify({
+                            type: "prompt",
+                            id: requestId,
+                            text: prompt,
+                            tools: options.tools ?? [],
+                            toolMode: options.toolMode === vscode.LanguageModelChatToolMode.Required ? "required" : "auto",
+                        })}\n`);
                     }
                 }
                 else if (event.type === "chunk" && event.id === requestId && event.delta) {
                     progress.report(new vscode.LanguageModelTextPart(event.delta));
+                }
+                else if (event.type === "toolCall" && event.id === requestId && event.callId && event.name) {
+                    try {
+                        const input = JSON.parse(event.input ?? "{}");
+                        if (typeof input !== "object" || input === null || Array.isArray(input)) {
+                            throw new Error("Tool arguments must be a JSON object.");
+                        }
+                        toolCallCount++;
+                        progress.report(new vscode.LanguageModelToolCallPart(event.callId, event.name, input));
+                    }
+                    catch (error) {
+                        finish(error instanceof Error ? error : new Error(String(error)));
+                        return;
+                    }
                 }
                 else if (event.type === "done" && event.id === requestId) {
                     finish();
@@ -177,6 +206,10 @@ function requestModel(helperPath, prompt, progress, token) {
         child.on("error", (error) => finish(error));
         child.on("close", (code) => {
             if (!settled) {
+                if (toolCallCount > 0) {
+                    finish();
+                    return;
+                }
                 const details = stderr.trim();
                 finish(new Error(details || `Apple model helper exited with code ${code ?? "unknown"}.`));
             }

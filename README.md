@@ -16,9 +16,9 @@ npm install
 npm run typecheck
 npm run build
 npm run package
-code --install-extension apple-foundation-models-chat-provider-darwin-arm64-0.1.3.vsix
+code --install-extension apple-foundation-models-chat-provider-darwin-arm64-0.1.4.vsix
 ```
 
-Reload VS Code, open Copilot Chat, and select **AFM # Chat Provider** from the model picker. This provider supports text chat only; tool calling and image input are not advertised.
+Reload VS Code, open Copilot Chat, and select **AFM # Chat Provider** from the model picker. Tool calling is supported; image input is not advertised.
 
 The Marketplace publisher ID is `aksoomhussain`.
