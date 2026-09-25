@@ -18,9 +18,6 @@
   "extensionKind": [
     "ui"
   ],
-  "extensionDependencies": [
-    "boylett.on-device-model"
-  ],
   "main": "./dist/extension.js",
   "activationEvents": [
     "onLanguageModelChatProvider:apple-foundation-models"
@@ -35,9 +32,10 @@
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "build": "tsc",
+    "build:swift": "bash swift/build.sh",
+    "build": "npm run build:swift && tsc",
     "vscode:prepublish": "npm run build",
-    "package": "vsce package --allow-missing-repository"
+    "package": "vsce package --target darwin-arm64 --allow-missing-repository"
   },
   "devDependencies": {
     "@types/node": "^22.15.0",

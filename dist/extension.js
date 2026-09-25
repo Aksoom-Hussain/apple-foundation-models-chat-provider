@@ -41,7 +41,6 @@ const node_path_1 = require("node:path");
 const vscode = __importStar(require("vscode"));
 const VENDOR = "apple-foundation-models";
 const MODEL_ID = "apple-foundation-model";
-const ON_DEVICE_MODEL_EXTENSION = "boylett.on-device-model";
 const MODEL_INFO = {
     id: MODEL_ID,
     name: "Apple Foundation Models (On-Device)",
@@ -52,11 +51,15 @@ const MODEL_INFO = {
     capabilities: { toolCalling: false },
 };
 function activate(context) {
-    context.subscriptions.push(vscode.lm.registerLanguageModelChatProvider(VENDOR, new AppleFoundationModelProvider()));
+    context.subscriptions.push(vscode.lm.registerLanguageModelChatProvider(VENDOR, new AppleFoundationModelProvider(context.extensionUri.fsPath)));
 }
 class AppleFoundationModelProvider {
+    extensionPath;
+    constructor(extensionPath) {
+        this.extensionPath = extensionPath;
+    }
     async provideLanguageModelChatInformation() {
-        const helperPath = getHelperPath();
+        const helperPath = getHelperPath(this.extensionPath);
         if (!helperPath) {
             return [];
         }
@@ -69,9 +72,9 @@ class AppleFoundationModelProvider {
         }
     }
     async provideLanguageModelChatResponse(_model, messages, _options, progress, token) {
-        const helperPath = getHelperPath();
+        const helperPath = getHelperPath(this.extensionPath);
         if (!helperPath) {
-            throw new Error(`Install the ${ON_DEVICE_MODEL_EXTENSION} extension to use this model.`);
+            throw new Error("Apple Foundation Models is supported only on macOS with Apple Silicon.");
         }
         const prompt = messages
             .map((message) => {
@@ -90,14 +93,11 @@ class AppleFoundationModelProvider {
         return Math.ceil(value.length / 4);
     }
 }
-function getHelperPath() {
+function getHelperPath(extensionPath) {
     if (process.platform !== "darwin" || process.arch !== "arm64") {
         return undefined;
     }
-    const extension = vscode.extensions.getExtension(ON_DEVICE_MODEL_EXTENSION);
-    return extension
-        ? (0, node_path_1.join)(extension.extensionPath, "dist", "bin", "on-device-model-cli")
-        : undefined;
+    return (0, node_path_1.join)(extensionPath, "dist", "bin", "on-device-model-cli");
 }
 function readTextPart(part) {
     if (typeof part !== "object" || part === null || !("value" in part)) {

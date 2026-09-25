@@ -6,7 +6,6 @@ import * as vscode from "vscode";
 
 const VENDOR = "apple-foundation-models";
 const MODEL_ID = "apple-foundation-model";
-const ON_DEVICE_MODEL_EXTENSION = "boylett.on-device-model";
 const MODEL_INFO: vscode.LanguageModelChatInformation = {
 	id: MODEL_ID,
 	name: "Apple Foundation Models (On-Device)",
@@ -19,13 +18,18 @@ const MODEL_INFO: vscode.LanguageModelChatInformation = {
 
 export function activate(context: vscode.ExtensionContext): void {
 	context.subscriptions.push(
-		vscode.lm.registerLanguageModelChatProvider(VENDOR, new AppleFoundationModelProvider()),
+		vscode.lm.registerLanguageModelChatProvider(
+			VENDOR,
+			new AppleFoundationModelProvider(context.extensionUri.fsPath),
+		),
 	);
 }
 
 class AppleFoundationModelProvider implements vscode.LanguageModelChatProvider {
+	constructor(private readonly extensionPath: string) {}
+
 	async provideLanguageModelChatInformation(): Promise<vscode.LanguageModelChatInformation[]> {
-		const helperPath = getHelperPath();
+		const helperPath = getHelperPath(this.extensionPath);
 		if (!helperPath) {
 			return [];
 		}
@@ -45,9 +49,9 @@ class AppleFoundationModelProvider implements vscode.LanguageModelChatProvider {
 		progress: vscode.Progress<vscode.LanguageModelResponsePart>,
 		token: vscode.CancellationToken,
 	): Promise<void> {
-		const helperPath = getHelperPath();
+		const helperPath = getHelperPath(this.extensionPath);
 		if (!helperPath) {
-			throw new Error(`Install the ${ON_DEVICE_MODEL_EXTENSION} extension to use this model.`);
+			throw new Error("Apple Foundation Models is supported only on macOS with Apple Silicon.");
 		}
 
 		const prompt = messages
@@ -74,15 +78,12 @@ class AppleFoundationModelProvider implements vscode.LanguageModelChatProvider {
 	}
 }
 
-function getHelperPath(): string | undefined {
+function getHelperPath(extensionPath: string): string | undefined {
 	if (process.platform !== "darwin" || process.arch !== "arm64") {
 		return undefined;
 	}
 
-	const extension = vscode.extensions.getExtension(ON_DEVICE_MODEL_EXTENSION);
-	return extension
-		? join(extension.extensionPath, "dist", "bin", "on-device-model-cli")
-		: undefined;
+	return join(extensionPath, "dist", "bin", "on-device-model-cli");
 }
 
 function readTextPart(part: unknown): string {
