@@ -46,8 +46,9 @@ const MODEL_INFO = {
     name: "AFM # Chat Provider",
     family: "apple-foundation-models",
     version: "1",
-    maxInputTokens: 4096,
+    maxInputTokens: 16_384,
     maxOutputTokens: 1024,
+    detail: "4K on-device context; older conversation and excess tools are trimmed automatically.",
     capabilities: { toolCalling: true },
 };
 function activate(context) {
