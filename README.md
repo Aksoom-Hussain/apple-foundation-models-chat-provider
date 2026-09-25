@@ -1,4 +1,4 @@
-# Apple Foundation Models Chat Provider
+# AFM # Chat Provider
 
 This VS Code extension adds Apple's on-device Foundation Model to the VS Code chat model picker. It includes and builds its own Swift helper using Apple's Foundation Models framework.
 
@@ -16,9 +16,9 @@ npm install
 npm run typecheck
 npm run build
 npm run package
-code --install-extension apple-foundation-models-chat-provider-0.1.0-darwin-arm64.vsix
+code --install-extension apple-foundation-models-chat-provider-darwin-arm64-0.1.3.vsix
 ```
 
-Reload VS Code, open Copilot Chat, and select **Apple Foundation Models (On-Device)** from the model picker. This provider supports text chat only; tool calling and image input are not advertised.
+Reload VS Code, open Copilot Chat, and select **AFM # Chat Provider** from the model picker. This provider supports text chat only; tool calling and image input are not advertised.
 
-Before publishing to the VS Code Marketplace, replace the local `publisher` value in `package.json` with your registered Marketplace publisher ID.
+The Marketplace publisher ID is `aksoomhussain`.

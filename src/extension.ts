@@ -8,7 +8,7 @@ const VENDOR = "apple-foundation-models";
 const MODEL_ID = "apple-foundation-model";
 const MODEL_INFO: vscode.LanguageModelChatInformation = {
 	id: MODEL_ID,
-	name: "Apple Foundation Models (On-Device)",
+	name: "AFM # Chat Provider",
 	family: "apple-foundation-models",
 	version: "1",
 	maxInputTokens: 4096,
