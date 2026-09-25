@@ -1,0 +1,48 @@
+{
+  "name": "apple-foundation-models-chat-provider",
+  "displayName": "Apple Foundation Models Chat Provider",
+  "description": "Use Apple's on-device Foundation Model in the VS Code chat model picker.",
+  "version": "0.1.0",
+  "publisher": "local",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Aksoom-Hussain/apple-foundation-models-chat-provider.git"
+  },
+  "homepage": "https://github.com/Aksoom-Hussain/apple-foundation-models-chat-provider#readme",
+  "bugs": {
+    "url": "https://github.com/Aksoom-Hussain/apple-foundation-models-chat-provider/issues"
+  },
+  "engines": {
+    "vscode": "^1.139.0"
+  },
+  "extensionKind": [
+    "ui"
+  ],
+  "extensionDependencies": [
+    "boylett.on-device-model"
+  ],
+  "main": "./dist/extension.js",
+  "activationEvents": [
+    "onLanguageModelChatProvider:apple-foundation-models"
+  ],
+  "contributes": {
+    "languageModelChatProviders": [
+      {
+        "vendor": "apple-foundation-models",
+        "displayName": "Apple Foundation Models"
+      }
+    ]
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "build": "tsc",
+    "vscode:prepublish": "npm run build",
+    "package": "vsce package --allow-missing-repository"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.0",
+    "@types/vscode": "^1.138.0",
+    "@vscode/vsce": "^3.2.0",
+    "typescript": "^5.8.3"
+  }
+}
