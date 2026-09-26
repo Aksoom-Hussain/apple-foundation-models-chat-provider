@@ -2,7 +2,7 @@
   "name": "apple-foundation-models-chat-provider",
   "displayName": "AFM # Chat Provider",
   "description": "Use Apple's on-device Foundation Model in the VS Code chat model picker.",
-  "version": "0.1.6",
+  "version": "0.1.4",
   "publisher": "aksoomhussain",
   "keywords": [
     "apple",

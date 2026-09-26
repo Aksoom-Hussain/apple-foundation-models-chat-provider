@@ -154,8 +154,8 @@ struct OnDeviceModelCLI {
                 tools: tools,
                 toolMode: request.toolMode,
                 capture: capture,
-                requestID: requestID,
             )
+            emit(Event(type: "chunk", id: requestID, delta: response))
             emit(Event(type: "done", id: requestID, content: response))
         } catch {
             let calls = await capture.drain()
@@ -193,7 +193,6 @@ struct OnDeviceModelCLI {
         tools: [VSCodeTool],
         toolMode: String?,
         capture: ToolCallCapture,
-        requestID: String,
     ) async throws -> String {
         var candidatePrompt = prompt
         var candidateTools = tools
@@ -206,11 +205,10 @@ struct OnDeviceModelCLI {
                     toolMode: toolMode,
                 )
                 let session = LanguageModelSession(tools: budgetedRequest.tools)
-                return try await streamAndRespond(
+                return try await respondOnce(
                     session: session,
                     prompt: budgetedRequest.prompt,
                     toolMode: toolMode,
-                    requestID: requestID,
                 )
             } catch {
                 if await capture.hasCalls() {
@@ -284,39 +282,17 @@ struct OnDeviceModelCLI {
         throw ToolSchemaError.contextRetryExhausted
     }
 
-    private static func streamAndRespond(
-        session: LanguageModelSession,
-        prompt: String,
-        toolMode: String?,
-        requestID: String,
-    ) async throws -> String {
-        var previousContent = ""
+    private static func respondOnce(session: LanguageModelSession, prompt: String, toolMode: String?) async throws -> String {
         if toolMode == "required" {
             guard #available(macOS 27.0, *) else {
                 throw ToolSchemaError.requiredModeUnavailable
             }
-            for try await response in session.streamResponse(
+            return try await session.respond(
                 to: prompt,
                 options: GenerationOptions(toolCallingMode: .required),
-            ) {
-                let currentContent = response.content
-                if currentContent.count > previousContent.count {
-                    let delta = String(currentContent.dropFirst(previousContent.count))
-                    emit(Event(type: "chunk", id: requestID, delta: delta))
-                    previousContent = currentContent
-                }
-            }
-        } else {
-            for try await response in session.streamResponse(to: prompt) {
-                let currentContent = response.content
-                if currentContent.count > previousContent.count {
-                    let delta = String(currentContent.dropFirst(previousContent.count))
-                    emit(Event(type: "chunk", id: requestID, delta: delta))
-                    previousContent = currentContent
-                }
-            }
+            ).content
         }
-        return previousContent
+        return try await session.respond(to: prompt).content
     }
 
     private static func contextReductionFactor(for error: Error) -> Double? {
@@ -345,9 +321,8 @@ struct OnDeviceModelCLI {
     private static func generationSchema(_ value: JSONValue, name: String) throws -> DynamicGenerationSchema {
         let schema = value.objectValue ?? [:]
         let description = schema["description"]?.stringValue
-        let typeString = schema["type"]?.stringValue
-
-        if typeString == "object" || (typeString == nil && schema["properties"] != nil) {
+        switch schema["type"]?.stringValue {
+        case "object":
             let properties = schema["properties"]?.objectValue ?? [:]
             let required = Set(schema["required"]?.arrayValue?.compactMap(\.stringValue) ?? [])
             let generatedProperties = try properties.map { propertyName, propertySchema in
@@ -359,14 +334,11 @@ struct OnDeviceModelCLI {
                 )
             }
             return DynamicGenerationSchema(name: name, description: description, properties: generatedProperties)
-        }
-
-        if typeString == "array" || (typeString == nil && schema["items"] != nil) {
-            let itemSchema = schema["items"] ?? .object(["type": .string("string")])
+        case "array":
+            guard let itemSchema = schema["items"] else {
+                throw ToolSchemaError.missingArrayItems(name)
+            }
             return DynamicGenerationSchema(arrayOf: try generationSchema(itemSchema, name: "Item"))
-        }
-
-        switch typeString {
         case "string":
             if let values = schema["enum"]?.arrayValue?.compactMap(\.stringValue), !values.isEmpty {
                 return DynamicGenerationSchema(name: name, description: description, anyOf: values)
@@ -378,11 +350,10 @@ struct OnDeviceModelCLI {
             return DynamicGenerationSchema(type: Double.self)
         case "boolean":
             return DynamicGenerationSchema(type: Bool.self)
-        default:
-            if let values = schema["enum"]?.arrayValue?.compactMap(\.stringValue), !values.isEmpty {
-                return DynamicGenerationSchema(name: name, description: description, anyOf: values)
-            }
+        case "unknown":
             return DynamicGenerationSchema(type: String.self)
+        default:
+            throw ToolSchemaError.unsupportedType(name, schema["type"]?.stringValue)
         }
     }
 
